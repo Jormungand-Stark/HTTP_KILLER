@@ -6,7 +6,7 @@ HTTP_KILLER是一个在Linux下使用的非常简单的网站压测工具。它�
 C
 
 # 开发环境
-CentOS7、vim、gcc、gdb、git、Makefile
+Debian 5.10.13-1kali1、vim、gcc、gdb、git
 
 # 技术栈
 套接字socket、HTTP协议、TCP/IP、fork多进程、getopt_long命令行解析函数、sigaction信号处理、write/read操作
@@ -29,10 +29,3 @@ CentOS7、vim、gcc、gdb、git、Makefile
 |       |--trace                |使用 TRACE 请求方法              |
 |-?/-h  |--help                 |打印帮助信息                     |
 |-V/-v  |--version              |显示版本                        |
-
-
-# 通过makefile使用
-
-```bash
-sudo make && sudo make install PREFIX=your_path_to_webbench
-```
