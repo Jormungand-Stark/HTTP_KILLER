@@ -29,3 +29,8 @@ Debian 5.10.13-1kali1、vim、gcc、gdb、git
 |       |--trace                |使用 TRACE 请求方法              |
 |-?/-h  |--help                 |打印帮助信息                     |
 |-V/-v  |--version              |显示版本                        |
+
+
+# 执行结果
+![image](https://user-images.githubusercontent.com/71392262/131618966-140529e7-9ca8-486b-9fad-51a041d58bc6.png)
+  
