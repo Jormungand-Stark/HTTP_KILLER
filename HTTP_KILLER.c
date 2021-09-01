@@ -1,20 +1,3 @@
-/*
-* (C) Radim Kolar 1997-2004
-* This is free software, see GNU Public License version 2 for
-* details.
-*
-* Simple forking WWW Server benchmark:
-*
-* Usage:
-*   ./HTTP_KILL --help
-*
-* Return codes:
-*    0 - sucess
-*    1 - benchmark failed (server is not on-line)
-*    2 - bad param
-*    3 - internal error, fork failed
-* 
-*/ 
 #include"Socket.c"
 #include<unistd.h>
 #include<stdio.h>
@@ -207,6 +190,9 @@ int main(int argc, char* argv[])
         /* 解析完命令行后，首先先构造http请求报文 */
         build_request(argv[optind]); // 参数是URL
         /* 请求报文构造好了 */
+        printf("method: %d\n", method);
+        printf("request: %s\n", request);
+        printf("proxy_host: %s\n", proxy_host);
 
         /* 开始测压 */
         printf("\n       Try Killing：......\n");
@@ -220,7 +206,7 @@ int main(int argc, char* argv[])
                 case HTTP_TRACE: printf("TRACE"); break;
         }
 
-        printf(" %s",argv[optind]);
+        printf(" %s", argv[optind]);
 
         switch(http_v)
         {
@@ -233,7 +219,7 @@ int main(int argc, char* argv[])
 
         printf("%d 个客户端", clients);
 
-        printf(",%d s", request_time);
+        printf(",running %d s", request_time);
 
         if (force) printf(",选择提前关闭连接");
 
@@ -247,11 +233,12 @@ int main(int argc, char* argv[])
          * 而换行后缓冲区就刷新了，子进程的标准库函数的缓冲区就不会有前面的这些了 */
 
         /* 开始压力测试 */
-        //return Kill();
+        return Kill();
 }
 
 void build_request(const char* url) /* 构造请求报文 */
 {
+        printf("-----build_request-----\n");
         char carr[10];
         int i = 0;
 
@@ -304,7 +291,8 @@ void build_request(const char* url) /* 构造请求报文 */
 
         /* 定位url中主机名开始的位置 */
         // 比如  http://<host>:<port>/<path>?<searchpart>    
-        i = strstr(url, "://") - url + 3;
+        i = strstr(url, "://") - url + 3; // 若str2是str1的子串，则返回str2在str1的首次出现的地址；如果str2不是str1的子串，则返回NULL。
+        printf("i: %d\n", i); // i=7
 
         // 4.在主机名开始的位置找是否有'/'，若没有则非法
         if (strchr(url + i, '/') == NULL)
@@ -318,8 +306,9 @@ void build_request(const char* url) /* 构造请求报文 */
         // 无代理时
         if (proxy_host == NULL)
         {
+                printf("---未设置代理服务器 proxy_host=NULL ---\n");
                 // 有端口号时，填写端口号
-                if (index(url + i, ':') != NULL && index(url, ':') < index(url, '/'))
+                if (index(url + i, ':') != NULL && index(url, ':') < index(url, '/')) // 如果找到指定的字符则返回该字符所在地址，否则返回0.
                 {
                         // 设置域名或IP
                         strncpy(host, url + i, strchr(url + i, ':') - url - i);
@@ -330,13 +319,13 @@ void build_request(const char* url) /* 构造请求报文 */
                         // 设置端口号
                         proxy_port = atoi(carr);
                         if (proxy_port == 0) proxy_port = 80; // 避免写了':'却没写端口号
-                        // printf("proxy_port: %d\n", proxy_port);
+                        printf("proxy_port: %d\n", proxy_port);
                 }
                 else    // 无端口号
                 {
                         strncpy(host, url + i, strcspn(url + i, "/"));   // 将url+i到第一个”/"之间的字符复制到host中
                 }
-                // printf("host: %s\n", host);
+                printf("host: %s\n", host);
         }
         else    // 有代理服务器就简单了，直接填就行，不用自己处理
         {
@@ -377,6 +366,7 @@ void build_request(const char* url) /* 构造请求报文 */
 
 static int Kill()
 {
+        printf("-----kill-----\n");
         int i = 0, j = 0; // j:用于辅助 参数failed 累加服务器每次发回的失败请求数
         long long k = 0; // 用于辅助 参数bytes 累加服务器每次发回的总字节数
         pid_t pid = 0;
@@ -407,7 +397,8 @@ static int Kill()
                 if (pid <= 0)
                 {
                         sleep(1);
-                        break;  // 失败或者执行子进程都结束循环，否则该子进程可能继续fork了，显然不可以
+                        break;  
+        // 失败或者子进程执行本语句都结束循环，否则该子进程可能继续fork了，显然不可以
                 }
         }
 
@@ -494,9 +485,10 @@ static int Kill()
 
 void Killcore(const char *host,const int port,const char *req)
 {
-        int rlen;
-        char buf[1500];
-        int s,i;
+        printf("-------killore-------\n");
+        int rlen; // 记录req长度
+        char buff[1500];
+        int s, i; // s:socket文件描述符
         struct sigaction sa;
 
         /*  安装闹钟信号的处理函数 
@@ -507,19 +499,27 @@ void Killcore(const char *host,const int port,const char *req)
          *       int sa_flags;
          *       void (*sa_restorer)(void);
          *   };
+         *   sa_handler此参数和signal()的参数handler相同，代表新的信号处理函数，其他意义请参考signal()。
+         *   sa_mask 用来设置在处理该信号时暂时将sa_mask 指定的信号集搁置。
+         *   sa_restorer 此参数没有使用。
+         *   sa_flags 用来设置信号处理的其他相关操作，下列的数值可用:
+         *      SA_RESETHAND：当调用信号处理函数时，将信号的处理函数重置为缺省值SIG_DFL
+         *      SA_RESTART：如果信号中断了进程的某个系统调用，则系统自动启动该系统调用
+         *      SA_NODEFER ：一般情况下， 当信号处理函数运行时，内核将阻塞该给定信号。但是如果设置了 SA_NODEFER标记， 那么在该信号处理函数运行时，内核将不会阻塞该信号
          */
 
         sa.sa_handler=alarm_solve;
         sa.sa_flags=0;
-        if(sigaction(SIGALRM,&sa,NULL))
-                exit(3);
+        if(sigaction(SIGALRM, &sa, NULL)) exit(3);
 
         alarm(request_time); // after request_time,then exit
-
         rlen=strlen(req);
-nexttry:while(1)
+
+        nextwork:while(1)
         {
-                if(timerexpired)
+                // 只有在收到闹钟信号后会使 time = 1
+                // 即该子进程的工作结束了
+                if(time_alarm)
                 {
                         if(failed>0)
                         {
@@ -529,32 +529,45 @@ nexttry:while(1)
                         return;
                 }
 
-                s=Socket(host,port);
-                if(s<0) { failed++;continue;}
-                if(rlen!=write(s,req,rlen)) {failed++;close(s);continue;}
-                if(http10==0)
-                        if(shutdown(s,1)) { failed++;close(s);continue;}
-                if(force==0)
+                // 建立到目标网站服务器的tcp连接，发送http请求
+                s = Socket(host, port);
+                if(s < 0) { failed++; continue;} // 请求失败数增加
+                
+                //发送请求报文, 但是未能把所有请求都写入
+                if(rlen != write(s, req, rlen)) {failed++; close(s); continue;} 
+                // 写操作结束记得关闭套接字
+
+                /* http0.9的特殊处理
+                 * 因为http0.9是在服务器回复后自动断开连接的，不keep-alive
+                 * 在此可以提前彻底关闭套接字的写的一半，如果失败了那么肯定是个不正常的状态,
+                 * 如果关闭成功则继续往后，因为可能还有需要接收服务器的回复内容
+                 * 但是写这一半是一定可以关闭了，作为客户端进程上不需要再写了
+                 * 因此我们主动破坏套接字的写端，但是这不是关闭套接字，关闭还是得close
+                 * 事实上，关闭写端后，服务器没写完的数据也不会再写了，不过这个就不考虑了
+                 */
+                if(http_v == 0)
+                        if(shutdown(s, 1)) {failed++; close(s); continue;}
+                if(force == 0) // -f没有设置时, 默认等待服务器的回复
                 {
                         /* read all available data from socket */
                         while(1)
                         {
-                                if(timerexpired) break;
-                                i=read(s,buf,1500);
+                                if(time_alarm) break;
+                                i = read(s, buff, 1500); // 读服务器发回的数据到buff中
                                 /* fprintf(stderr,"%d\n",i); */
-                                if(i<0)
+                                if(i<0) // 读操作失败
                                 {
-                                        failed++;
-                                        close(s);
-                                        goto nexttry;
+                                        failed++; // 请求失败数增加
+                                        close(s); // 失败后一定要关闭套接字，不然失败个数多时会严重浪费资源
+                                        goto nextwork; // 这次失败了那么继续下一次连接，与发出请求
                                 }
                                 else
-                                        if(i==0) break;
-                                        else
-                                                bytes+=i;
+                                        if(i==0) break; // 读完了
+                                        else bytes+=i; // 统计服务器回复的字节数
                         }
                 }
-                if(close(s)) {failed++;continue;}
-                speed++;
+                //如果之前已经执行过close那么显然此时就是重复关闭了，会返回-1
+                if(close(s)) {failed++; continue;}
+                speed++; // 之前没有执行则返回0
         }
 }
